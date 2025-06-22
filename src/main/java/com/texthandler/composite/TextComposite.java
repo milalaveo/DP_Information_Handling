@@ -17,11 +17,16 @@ public class TextComposite extends AbstractTextComponent {
             TextComponent child = children.get(i);
             sb.append(child.restore());
             
-            // Добавляем разделители в зависимости от типа
-            if (type == TextComponentType.TEXT && i < children.size() - 1) {
-                sb.append("\n");
-            } else if (type == TextComponentType.SENTENCE && i < children.size() - 1) {
-                sb.append(" ");
+            // Добавляем разделители только если они не представлены явно
+            if (i < children.size() - 1) {
+                TextComponent nextChild = children.get(i + 1);
+                
+                // Если следующий элемент не является символом-разделителем, добавляем пробел
+                if (type == TextComponentType.SENTENCE && 
+                    (nextChild.getType() == TextComponentType.WORD || 
+                     nextChild.getType() == TextComponentType.LEXEME)) {
+                    sb.append(" ");
+                }
             }
         }
         

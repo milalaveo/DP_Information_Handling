@@ -5,133 +5,261 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.function.DoubleBinaryOperator;
-import java.util.function.DoubleUnaryOperator;
 
 /**
- * Процессор для обработки арифметических выражений в тексте
+ * Обработчик арифметических выражений в тексте
+ * Находит выражения в скобках и отдельные арифметические выражения, заменяет их вычисленными значениями
  */
 public class ArithmeticExpressionProcessor {
     private static final Logger logger = LogManager.getLogger(ArithmeticExpressionProcessor.class);
     
-    private static final String ARITHMETIC_EXPRESSION_PATTERN = "\\([0-9+\\-*/()\\s]+\\)";
+    // Паттерн для поиска выражений в круглых скобках (приоритет)
+    private static final Pattern PARENTHESES_PATTERN = Pattern.compile("\\(([^()]*[+\\-*/][^()]*)\\)");
     
+    // Паттерн для поиска арифметических выражений без скобок
+    private static final Pattern ARITHMETIC_PATTERN = Pattern.compile("\\b\\d+(?:\\.\\d+)?(?:\\s*[+\\-*/]\\s*\\d+(?:\\.\\d+)?)+\\b");
+    
+    /**
+     * Обрабатывает все арифметические выражения в тексте
+     * @param text исходный текст
+     * @return текст с вычисленными выражениями
+     */
     public String processExpressions(String text) {
-        Pattern pattern = Pattern.compile(ARITHMETIC_EXPRESSION_PATTERN);
-        Matcher matcher = pattern.matcher(text);
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
         
-        StringBuffer result = new StringBuffer();
+        String result = text;
+        
+        // Сначала обрабатываем выражения в скобках
+        result = processParenthesesExpressions(result);
+        
+        // Затем обрабатываем обычные арифметические выражения
+        result = processArithmeticExpressions(result);
+        
+        return result;
+    }
+    
+    /**
+     * Обрабатывает выражения в скобках
+     */
+    private String processParenthesesExpressions(String text) {
+        String result = text;
+        Matcher matcher = PARENTHESES_PATTERN.matcher(result);
         
         while (matcher.find()) {
-            String expression = matcher.group();
+            String fullMatch = matcher.group(0);  // Полное совпадение с скобками
+            String expression = matcher.group(1); // Выражение без скобок
+            
             try {
                 double value = evaluateExpression(expression);
-                matcher.appendReplacement(result, String.valueOf(value));
-                logger.info("Evaluated expression {} = {}", expression, value);
+                result = result.replace(fullMatch, String.valueOf(value));
+                logger.info("Processed parentheses expression: {} = {}", expression, value);
+                
+                // Обновляем matcher для продолжения поиска
+                matcher = PARENTHESES_PATTERN.matcher(result);
             } catch (Exception e) {
-                logger.error("Error evaluating expression: {}", expression, e);
-                matcher.appendReplacement(result, expression); // Оставляем исходное выражение
+                logger.warn("Failed to evaluate parentheses expression: {}, error: {}", expression, e.getMessage());
             }
         }
-        matcher.appendTail(result);
         
-        return result.toString();
+        return result;
+    }
+    
+    /**
+     * Обрабатывает простые арифметические выражения без скобок
+     */
+    private String processArithmeticExpressions(String text) {
+        String result = text;
+        Matcher matcher = ARITHMETIC_PATTERN.matcher(result);
+        
+        while (matcher.find()) {
+            String expression = matcher.group(0);
+            
+            try {
+                double value = evaluateExpression(expression);
+                result = result.replace(expression, String.valueOf(value));
+                logger.info("Processed arithmetic expression: {} = {}", expression, value);
+                
+                // Обновляем matcher для продолжения поиска
+                matcher = ARITHMETIC_PATTERN.matcher(result);
+            } catch (Exception e) {
+                logger.warn("Failed to evaluate arithmetic expression: {}, error: {}", expression, e.getMessage());
+            }
+        }
+        
+        return result;
     }
     
     private double evaluateExpression(String expression) {
-        // Удаляем внешние скобки и пробелы
-        expression = expression.replaceAll("[\\s()]", "");
+        // Сначала обрабатываем все вложенные скобки
+        String processed = processNestedParentheses(expression);
         
-        return new ExpressionEvaluator().evaluate(expression);
+        // Затем вычисляем результат
+        return parseExpression(processed.trim());
+    }
+
+    private String processNestedParentheses(String expression) {
+        while (expression.contains("(")) {
+            // Находим самые внутренние скобки
+            int start = -1;
+            int end = -1;
+            
+            for (int i = 0; i < expression.length(); i++) {
+                if (expression.charAt(i) == '(') {
+                    start = i;
+                } else if (expression.charAt(i) == ')') {
+                    end = i;
+                    break;
+                }
+            }
+            
+            if (start == -1 || end == -1) break;
+            
+            // Вычисляем выражение внутри скобок
+            String innerExpr = expression.substring(start + 1, end);
+            double result = parseExpression(innerExpr);
+            
+            // Заменяем скобки на результат
+            expression = expression.substring(0, start) + result + expression.substring(end + 1);
+        }
+        
+        return expression;
     }
     
-    private static class ExpressionEvaluator {
-        private DoubleBinaryOperator add = Double::sum;
-        private DoubleBinaryOperator subtract = (a, b) -> a - b;
-        private DoubleBinaryOperator multiply = (a, b) -> a * b;
-        private DoubleBinaryOperator divide = (a, b) -> a / b;
-        private DoubleUnaryOperator negate = a -> -a;
+    /**
+     * Парсит и вычисляет выражение с учетом приоритета операций
+     */
+    private double parseExpression(String expression) {
+        // Убираем лишние пробелы
+        expression = expression.replaceAll("\\s+", "");
+        return parseAddSubtract(expression, new ParsePosition(0));
+    }
+    
+    /**
+     * Парсит операции сложения и вычитания (наименьший приоритет)
+     */
+    private double parseAddSubtract(String expression, ParsePosition pos) {
+        double result = parseMultiplyDivide(expression, pos);
         
-        public double evaluate(String expression) {
-            return parseExpression(expression, 0).value;
-        }
-        
-        private Result parseExpression(String expr, int pos) {
-            Result left = parseTerm(expr, pos);
-            pos = left.pos;
-            
-            while (pos < expr.length()) {
-                char op = expr.charAt(pos);
-                if (op == '+' || op == '-') {
-                    pos++;
-                    Result right = parseTerm(expr, pos);
-                    if (op == '+') {
-                        left = new Result(add.applyAsDouble(left.value, right.value), right.pos);
-                    } else {
-                        left = new Result(subtract.applyAsDouble(left.value, right.value), right.pos);
-                    }
-                    pos = left.pos;
+        while (pos.index < expression.length()) {
+            char operator = expression.charAt(pos.index);
+            if (operator == '+' || operator == '-') {
+                pos.index++; // пропускаем оператор
+                double right = parseMultiplyDivide(expression, pos);
+                if (operator == '+') {
+                    result += right;
                 } else {
-                    break;
+                    result -= right;
                 }
+            } else {
+                break;
             }
-            
-            return left;
         }
         
-        private Result parseTerm(String expr, int pos) {
-            Result left = parseFactor(expr, pos);
-            pos = left.pos;
-            
-            while (pos < expr.length()) {
-                char op = expr.charAt(pos);
-                if (op == '*' || op == '/') {
-                    pos++;
-                    Result right = parseFactor(expr, pos);
-                    if (op == '*') {
-                        left = new Result(multiply.applyAsDouble(left.value, right.value), right.pos);
-                    } else {
-                        left = new Result(divide.applyAsDouble(left.value, right.value), right.pos);
-                    }
-                    pos = left.pos;
+        return result;
+    }
+    
+    /**
+     * Парсит операции умножения и деления (средний приоритет)
+     */
+    private double parseMultiplyDivide(String expression, ParsePosition pos) {
+        double result = parseFactor(expression, pos);
+        
+        while (pos.index < expression.length()) {
+            char operator = expression.charAt(pos.index);
+            if (operator == '*' || operator == '/') {
+                pos.index++; // пропускаем оператор
+                double right = parseFactor(expression, pos);
+                if (operator == '*') {
+                    result *= right;
                 } else {
-                    break;
+                    if (right == 0) {
+                        throw new ArithmeticException("Division by zero");
+                    }
+                    result /= right;
                 }
+            } else {
+                break;
             }
-            
-            return left;
         }
         
-        private Result parseFactor(String expr, int pos) {
-            if (pos < expr.length() && expr.charAt(pos) == '-') {
-                Result result = parseFactor(expr, pos + 1);
-                return new Result(negate.applyAsDouble(result.value), result.pos);
-            }
-            
-            if (pos < expr.length() && expr.charAt(pos) == '(') {
-                Result result = parseExpression(expr, pos + 1);
-                return new Result(result.value, result.pos + 1); // +1 для закрывающей скобки
-            }
-            
-            return parseNumber(expr, pos);
+        return result;
+    }
+    
+    /**
+     * Парсит числа, унарные операторы и выражения в скобках (наивысший приоритет)
+     */
+    private double parseFactor(String expression, ParsePosition pos) {
+        if (pos.index >= expression.length()) {
+            throw new IllegalArgumentException("Unexpected end of expression");
         }
         
-        private Result parseNumber(String expr, int pos) {
-            int start = pos;
-            while (pos < expr.length() && (Character.isDigit(expr.charAt(pos)) || expr.charAt(pos) == '.')) {
-                pos++;
-            }
-            return new Result(Double.parseDouble(expr.substring(start, pos)), pos);
+        char ch = expression.charAt(pos.index);
+        
+        // Унарный минус
+        if (ch == '-') {
+            pos.index++;
+            return -parseFactor(expression, pos);
         }
         
-        private static class Result {
-            double value;
-            int pos;
-            
-            Result(double value, int pos) {
-                this.value = value;
-                this.pos = pos;
+        // Унарный плюс
+        if (ch == '+') {
+            pos.index++;
+            return parseFactor(expression, pos);
+        }
+        
+        // Выражение в скобках
+        if (ch == '(') {
+            pos.index++; // пропускаем '('
+            double result = parseAddSubtract(expression, pos);
+            if (pos.index >= expression.length() || expression.charAt(pos.index) != ')') {
+                throw new IllegalArgumentException("Missing closing parenthesis");
             }
+            pos.index++; // пропускаем ')'
+            return result;
+        }
+        
+        // Число
+        return parseNumber(expression, pos);
+    }
+    
+    /**
+     * Парсит число (целое или с плавающей точкой)
+     */
+    private double parseNumber(String expression, ParsePosition pos) {
+        int start = pos.index;
+        
+        // Читаем цифры и точку
+        while (pos.index < expression.length()) {
+            char ch = expression.charAt(pos.index);
+            if (Character.isDigit(ch) || ch == '.') {
+                pos.index++;
+            } else {
+                break;
+            }
+        }
+        
+        if (start == pos.index) {
+            throw new IllegalArgumentException("Expected number at position " + pos.index);
+        }
+        
+        String numberStr = expression.substring(start, pos.index);
+        try {
+            return Double.parseDouble(numberStr);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid number: " + numberStr);
+        }
+    }
+    
+    /**
+     * Вспомогательный класс для отслеживания позиции при парсинге
+     */
+    private static class ParsePosition {
+        int index;
+        
+        ParsePosition(int index) {
+            this.index = index;
         }
     }
 }

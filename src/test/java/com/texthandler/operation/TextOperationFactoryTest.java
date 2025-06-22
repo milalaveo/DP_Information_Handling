@@ -64,11 +64,11 @@ class TextOperationFactoryTest {
     
     @Test
     void testOperationTypes() {
-        // Проверяем что возвращаются правильные типы операций
-        assertTrue(TextOperationFactory.createOperation(1) instanceof SortParagraphsBySentenceCountOperation);
-        assertTrue(TextOperationFactory.createOperation(2) instanceof FindSentencesWithLongestWordOperation);
-        assertTrue(TextOperationFactory.createOperation(3) instanceof RemoveShortSentencesOperation);
-        assertTrue(TextOperationFactory.createOperation(4) instanceof CountIdenticalWordsOperation);
-        assertTrue(TextOperationFactory.createOperation(5) instanceof CountVowelsConsonantsOperation);
+        // Проверяем, что возвращаются правильные типы операций
+        assertInstanceOf(SortParagraphsBySentenceCountOperation.class, TextOperationFactory.createOperation(1));
+        assertInstanceOf(FindSentencesWithLongestWordOperation.class, TextOperationFactory.createOperation(2));
+        assertInstanceOf(RemoveShortSentencesOperation.class, TextOperationFactory.createOperation(3));
+        assertInstanceOf(CountIdenticalWordsOperation.class, TextOperationFactory.createOperation(4));
+        assertInstanceOf(CountVowelsConsonantsOperation.class, TextOperationFactory.createOperation(5));
     }
 }

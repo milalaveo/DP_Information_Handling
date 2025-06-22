@@ -39,7 +39,7 @@ class TextCompositeTest {
     @Test
     void testRestore() {
         TextComponent word1 = new TextLeaf(TextComponentType.WORD, "Hello");
-        TextComponent space = new TextLeaf(TextComponentType.PUNCTUATION_SYMBOL, " ");
+        TextComponent space = new TextLeaf(TextComponentType.SYMBOL, " ");
         TextComponent word2 = new TextLeaf(TextComponentType.WORD, "World");
         
         textComposite.add(word1);

@@ -11,7 +11,7 @@ public final class RegexConstants {
     
     public static final String LEXEME_SEPARATOR = "\\S+";
     
-    public static final String WORD_PATTERN = "\\b[a-zA-Zа-яА-ЯёЁ]+\\b";
+    public static final String WORD_PATTERN = "\\d+\\.\\d+|\\b\\w+\\b";
     
     public static final String PUNCTUATION_PATTERN = "[\\p{Punct}\\s]+";
     

@@ -13,18 +13,23 @@ import java.util.Scanner;
  */
 public class RemoveShortSentencesOperation implements TextOperation {
     private static final Logger logger = LogManager.getLogger(RemoveShortSentencesOperation.class);
-    private final int minWordCount;
+    private Integer minWordCount; // Делаем nullable, чтобы запрашивать при выполнении
 
     public RemoveShortSentencesOperation(int minWordCount) {
         this.minWordCount = minWordCount;
     }
 
     public RemoveShortSentencesOperation() {
-        this.minWordCount = getMinWordCountFromUser();
+        this.minWordCount = null; // Будет запрошено при выполнении
     }
 
     @Override
     public String execute(TextComponent textComponent) {
+        // Запрашиваем минимальное количество слов ТОЛЬКО при выполнении операции
+        if (minWordCount == null) {
+            minWordCount = getMinWordCountFromUser();
+        }
+        
         TextComponent filteredText = filterText(textComponent);
         
         StringBuilder result = new StringBuilder();
@@ -85,18 +90,29 @@ public class RemoveShortSentencesOperation implements TextOperation {
 
     private int getMinWordCountFromUser() {
         Scanner scanner = new Scanner(System.in);
+        System.out.println("\n--- Настройка операции удаления коротких предложений ---");
         System.out.print("Введите минимальное количество слов в предложении: ");
         try {
-            return scanner.nextInt();
+            int count = scanner.nextInt();
+            if (count < 1) {
+                System.out.println("Предупреждение: Значение меньше 1, используется значение по умолчанию 3");
+                return 3;
+            }
+            System.out.println("Установлено минимальное количество слов: " + count);
+            return count;
         } catch (Exception e) {
             logger.warn("Invalid input, using default value 3");
-            return 3; // значение по умолчанию
+            System.out.println("Неверный ввод, используется значение по умолчанию: 3");
+            return 3;
         }
     }
 
     @Override
     public String getDescription() {
-        return String.format("Удаляет из текста все предложения с количеством слов меньше %d", minWordCount);
+        if (minWordCount != null) {
+            return String.format("Удаляет из текста все предложения с количеством слов меньше %d", minWordCount);
+        }
+        return "Удаляет из текста все предложения с количеством слов меньше заданного (будет запрошено)";
     }
 
     @Override

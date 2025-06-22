@@ -50,7 +50,17 @@ class ParserChainTest {
         
         assertNotNull(result);
         String restored = result.restore();
-        assertTrue(restored.contains("5.0"));
+        assertEquals("Result is 5.0 points.", restored);
+    }
+
+    @Test
+    void testParseWithAdvancedArithmetic() {
+        String input = "Result is 2+2*2 points.";
+        TextComponent result = parserChain.parse(input);
+
+        assertNotNull(result);
+        String restored = result.restore();
+        assertEquals("Result is 6.0 points.", restored);
     }
     
     @Test
